@@ -24,10 +24,13 @@ async function run() {
         // Send a ping to confirm a successful connection
 
         const productsCollection = client.db('galaxiDb').collection('productsCollection');
+
         const categoryCollection = client.db('galaxiDb').collection('categoryCollection');
 
-        app.post('/products',async(req,res)=> {
-            const newProduct=req.body;
+        const ordersCollection = client.db('galaxiDb').collection('orderCollections');
+
+        app.post('/products', async (req, res) => {
+            const newProduct = req.body;
             console.log(newProduct)
             const result = await productsCollection.insertOne(newProduct)
             res.send(result);
@@ -39,8 +42,14 @@ async function run() {
         })
 
         app.get('/products', async (req, res) => {
-            const products = await productsCollection.find().toArray();
-            // console.log(products)
+            let filter = {};
+            const query = req.query.email;
+            console.log(query);
+            if (query) {
+                filter = { email: query }
+            }
+            const products = await productsCollection.find(filter).toArray();
+            console.log(products)
             res.send(products)
         })
 
@@ -98,6 +107,24 @@ async function run() {
                 res.status(500).send({ error: 'Server error' });
             }
         });
+
+
+        app.delete('/products/delete/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await productsCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        })
+
+
+        // ordered products functions
+
+
+        app.post('/ordered/products',async(req,res)=>{
+            const {orderedProducts} = req.body;
+            // console.log(orderedProducts);
+            const result = await ordersCollection.insertOne(orderedProducts);
+            res.send(result);
+        })
 
 
 
