@@ -26,6 +26,13 @@ async function run() {
         const productsCollection = client.db('galaxiDb').collection('productsCollection');
         const categoryCollection = client.db('galaxiDb').collection('categoryCollection');
 
+        app.post('/products',async(req,res)=> {
+            const newProduct=req.body;
+            console.log(newProduct)
+            const result = await productsCollection.insertOne(newProduct)
+            res.send(result);
+        })
+
         app.get('/categories', async (req, res) => {
             const result = await categoryCollection.find().toArray();
             res.send(result);
