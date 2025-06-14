@@ -23,6 +23,8 @@ async function run() {
         await client.connect();
         // Send a ping to confirm a successful connection
 
+        console.log('entered mongo function')
+
         const productsCollection = client.db('galaxiDb').collection('productsCollection');
 
         const categoryCollection = client.db('galaxiDb').collection('categoryCollection');
@@ -107,6 +109,23 @@ async function run() {
                 res.status(500).send({ error: 'Server error' });
             }
         });
+
+
+        app.patch('/update/product/:id',async(req,res)=> {
+            const {id}=req.params;
+            const {updatedProduct} = req.body;
+            const filter = {_id: new ObjectId(id)};
+
+            // console.log('updated product->',updatedProduct)
+
+            const updatedDoc = {$set:updatedProduct}
+
+            const result = await productsCollection.updateOne(filter,updatedDoc);
+
+            console.log('from product update->',id, updatedProduct, result);
+
+            res.send(result);
+        })
 
 
         app.delete('/products/delete/:id', async (req, res) => {
