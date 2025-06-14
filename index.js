@@ -31,7 +31,7 @@ async function run() {
 
         app.post('/products', async (req, res) => {
             const newProduct = req.body;
-            console.log(newProduct)
+            // console.log(newProduct)
             const result = await productsCollection.insertOne(newProduct)
             res.send(result);
         })
@@ -44,34 +44,34 @@ async function run() {
         app.get('/products', async (req, res) => {
             let filter = {};
             const query = req.query.email;
-            console.log(query);
+            // console.log(query);
             if (query) {
                 filter = { email: query }
             }
             const products = await productsCollection.find(filter).toArray();
-            console.log(products)
+            // console.log(products)
             res.send(products)
         })
 
         app.get('/product/:id', async (req, res) => {
             const idStr = req.params.id;
-            console.log('idstr', idStr)
+            // console.log('idstr', idStr)
             const id = new ObjectId(idStr);
-            console.log('id', id)
+            // console.log('id', id)
             const filter = { _id: id };
-            console.log('filter', filter)
+            // console.log('filter', filter)
             const result = await productsCollection.findOne(filter);
-            console.log(result);
+            // console.log(result);
             res.send(result);
         })
 
         app.get('/products/category/:id', async (req, res) => {
             const filter = req.params.id;
-            console.log('filter =', filter)
+            // console.log('filter =', filter)
             const query = { category: filter }
-            console.log('qurey =', query);
+            // console.log('qurey =', query);
             const products = await productsCollection.find(query).toArray()
-            console.log(products);
+            // console.log(products);
             res.send(products)
         })
 
@@ -87,7 +87,7 @@ async function run() {
                 }
 
                 const filter = { _id: new ObjectId(id) };
-                console.log('filter:', filter);
+                // console.log('filter:', filter);
 
                 const updatedQuantity = {
                     $inc: { stock: -quantity }
@@ -119,11 +119,58 @@ async function run() {
         // ordered products functions
 
 
-        app.post('/ordered/products',async(req,res)=>{
-            const {orderedProducts} = req.body;
+        app.post('/ordered/products', async (req, res) => {
+            const { orderedProducts } = req.body;
             // console.log(orderedProducts);
             const result = await ordersCollection.insertOne(orderedProducts);
             res.send(result);
+        })
+
+        app.get('/ordered/products', async (req, res) => {
+            const query = req.query.email;
+            // console.log(query);
+            const filter = { email: query };
+            const result = await ordersCollection.find(filter).toArray();
+            // console.log(result);
+            res.send(result)
+        })
+
+        app.delete('/ordered/product/:id', async (req, res) => {
+            const { id } = req.params;
+            const query = { _id: new ObjectId(id) };
+            const result = await ordersCollection.deleteOne(query);
+            res.send(result);
+        })
+
+        app.patch('/ordered/products/:id', async (req, res) => {
+            const { quantity } = req.body;
+            try {
+                if (!quantity || typeof quantity !== 'number' || quantity <= 0) {
+                    return res.status(400).send('Invalid Quantity')
+                }
+
+                const { id } = req.params;
+                const filter = { name: id };
+
+                const updatedQuantity = {
+                    $inc: { stock: quantity }
+                }
+
+
+                const result = await productsCollection.updateOne(filter, updatedQuantity);
+
+                console.log('from patch->', quantity, id, updatedQuantity, result);
+
+
+                if (result.matchedCount === 0 || result.modifiedCount === 0) {
+                    return res.status(404).send({ error: 'Product not found' });
+                }
+
+                res.send({ message: 'Stock updated successfully', result });
+            } catch (error) {
+                console.error('Error updating stock:', error);
+                res.status(500).send({ error: 'Server error' });
+            }
         })
 
 
