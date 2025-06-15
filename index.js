@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
+const admin = require("firebase-admin");
+const serviceAccount = require("./galaxiamart-firebase-adminsdk.json");
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -16,6 +18,38 @@ const client = new MongoClient(process.env.DB_URI, {
         deprecationErrors: true,
     }
 });
+
+
+// firebase adminAdd commentMore actions
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+const verifyFirebaseToken = async (req, res, next) => {
+    const accessToken = req?.headers?.authorization;
+
+    if (!accessToken || !accessToken.startsWith('Bearer ')) {
+        return res.status(401).send({ message: 'unauthorized access' });
+    }
+
+    const token = accessToken.split(' ')[1];
+    // console.log(token);
+
+    try {
+        const decoded = await admin.auth().verifyIdToken(token)
+        // console.log('decoded->', decoded);
+
+        req.decoded = decoded;
+
+        next();
+    }
+    catch (error) {
+        res.status(401).send({ message: 'unauthorized access' });
+    }
+
+}
+
 
 async function run() {
     try {
@@ -43,11 +77,19 @@ async function run() {
             res.send(result);
         })
 
-        app.get('/products', async (req, res) => {
+        app.get('/products', verifyFirebaseToken, async (req, res) => {
+
+            console.log('decoded from api->', req.decoded);
+
             let filter = {};
             const query = req.query.email;
             // console.log(query);
             if (query) {
+
+                if (query !== req?.decoded?.email) {
+                    return res.status(401).send({ message: 'Access denied' })
+                }
+
                 filter = { email: query }
             }
             const products = await productsCollection.find(filter).toArray();
@@ -111,18 +153,18 @@ async function run() {
         });
 
 
-        app.patch('/update/product/:id',async(req,res)=> {
-            const {id}=req.params;
-            const {updatedProduct} = req.body;
-            const filter = {_id: new ObjectId(id)};
+        app.patch('/update/product/:id', async (req, res) => {
+            const { id } = req.params;
+            const { updatedProduct } = req.body;
+            const filter = { _id: new ObjectId(id) };
 
             // console.log('updated product->',updatedProduct)
 
-            const updatedDoc = {$set:updatedProduct}
+            const updatedDoc = { $set: updatedProduct }
 
-            const result = await productsCollection.updateOne(filter,updatedDoc);
+            const result = await productsCollection.updateOne(filter, updatedDoc);
 
-            console.log('from product update->',id, updatedProduct, result);
+            console.log('from product update->', id, updatedProduct, result);
 
             res.send(result);
         })
