@@ -8,7 +8,10 @@ const serviceAccount = require("./galaxiamart-firebase-adminsdk.json");
 const app = express()
 const port = process.env.PORT || 3000
 
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5173','https://galaxi-mart.netlify.app'],
+    credentials: true
+}));
 app.use(express.json());
 
 const client = new MongoClient(process.env.DB_URI, {
@@ -54,7 +57,7 @@ const verifyFirebaseToken = async (req, res, next) => {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         // Send a ping to confirm a successful connection
 
         console.log('entered mongo function')
@@ -97,7 +100,7 @@ async function run() {
             res.send(products)
         })
 
-        app.get('/product/:id', async (req, res) => {
+        app.get('/product/:id', verifyFirebaseToken, async (req, res) => {
             const idStr = req.params.id;
             // console.log('idstr', idStr)
             const id = new ObjectId(idStr);
@@ -187,9 +190,16 @@ async function run() {
             res.send(result);
         })
 
-        app.get('/ordered/products', async (req, res) => {
+        app.get('/ordered/products', verifyFirebaseToken, async (req, res) => {
             const query = req.query.email;
             // console.log(query);
+
+            if (query) {
+                if (query !== req?.decoded?.email) {
+                    return res.status(403).send({ message: 'Access Denied' })
+                }
+            }
+
             const filter = { email: query };
             const result = await ordersCollection.find(filter).toArray();
             // console.log(result);
@@ -236,7 +246,7 @@ async function run() {
 
 
 
-        await client.db("admin").command({ ping: 1 });
+        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
