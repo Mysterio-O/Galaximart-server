@@ -9,7 +9,7 @@ const app = express()
 const port = process.env.PORT || 3000
 
 app.use(cors({
-    origin: ['http://localhost:5173','https://galaxi-mart.netlify.app'],
+    origin: ['http://localhost:5173', 'https://galaxi-mart.netlify.app'],
     credentials: true
 }));
 app.use(express.json());
@@ -60,7 +60,7 @@ async function run() {
         // await client.connect();
         // Send a ping to confirm a successful connection
 
-        console.log('entered mongo function')
+        // console.log('entered mongo function')
 
         const productsCollection = client.db('galaxiDb').collection('productsCollection');
 
@@ -82,7 +82,7 @@ async function run() {
 
         app.get('/products', verifyFirebaseToken, async (req, res) => {
 
-            console.log('decoded from api->', req.decoded);
+            // console.log('decoded from api->', req.decoded);
 
             let filter = {};
             const query = req.query.email;
@@ -95,9 +95,29 @@ async function run() {
 
                 filter = { email: query }
             }
+
             const products = await productsCollection.find(filter).toArray();
-            // console.log(products)
+            // console.log('products length->', products.length)
             res.send(products)
+        })
+
+        app.get('/allProducts', verifyFirebaseToken, async (req, res) => {
+            const { sortParam } = req.query;
+            let sortObj = {};
+            let filter = {};
+            if (sortParam) {
+                const quantity = parseInt(sortParam);
+                if (quantity === 50 || quantity === 100) {
+                    filter = { minQuantity: { $gte: quantity } };
+                    sortObj = { minQuantity: 1 }
+                } else {
+                    res.status(400).send({ message: 'Invalid Sort Param' })
+                }
+            }
+
+            const result = await productsCollection.find(filter).sort(sortObj).toArray();
+            res.send(result);
+
         })
 
         app.get('/product/:id', verifyFirebaseToken, async (req, res) => {
@@ -167,7 +187,7 @@ async function run() {
 
             const result = await productsCollection.updateOne(filter, updatedDoc);
 
-            console.log('from product update->', id, updatedProduct, result);
+            // console.log('from product update->', id, updatedProduct, result);
 
             res.send(result);
         })
@@ -230,7 +250,7 @@ async function run() {
 
                 const result = await productsCollection.updateOne(filter, updatedQuantity);
 
-                console.log('from patch->', quantity, id, updatedQuantity, result);
+                // console.log('from patch->', quantity, id, updatedQuantity, result);
 
 
                 if (result.matchedCount === 0 || result.modifiedCount === 0) {
