@@ -68,6 +68,8 @@ async function run() {
 
         const ordersCollection = client.db('galaxiDb').collection('orderCollections');
 
+        const messageCollection = client.db('galaxiDb').collection('messageCollection');
+
         app.post('/products', async (req, res) => {
             const newProduct = req.body;
             // console.log(newProduct)
@@ -261,6 +263,32 @@ async function run() {
             } catch (error) {
                 console.error('Error updating stock:', error);
                 res.status(500).send({ error: 'Server error' });
+            }
+        });
+
+
+
+        // message api
+        app.post('/send-message', async (req, res) => {
+            const messageBody = req.body;
+            console.log(messageBody);
+
+            if (!messageBody) {
+                return res.status(400).json({ message: "message not found" });
+            }
+
+            try {
+                const result = await messageCollection.insertOne(messageBody);
+
+                if (!result.insertedId) {
+                    return res.status(404).json({ message: "message not sent! try again." })
+                };
+
+                res.status(201).json({ message: "message sent" });
+            }
+            catch(err){
+                console.log('error posting new message',err);
+                res.status(500).json({message:"internal server error while posting new message"});
             }
         })
 
