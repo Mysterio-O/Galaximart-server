@@ -70,6 +70,8 @@ async function run() {
 
         const messageCollection = client.db('galaxiDb').collection('messageCollection');
 
+        const cartCollection = client.db('galaxiDb').collection('cartCollection');
+
         app.post('/products', async (req, res) => {
             const newProduct = req.body;
             // console.log(newProduct)
@@ -122,7 +124,7 @@ async function run() {
 
         })
 
-        app.get('/product/:id', verifyFirebaseToken, async (req, res) => {
+        app.get('/product/:id', async (req, res) => {
             const idStr = req.params.id;
             // console.log('idstr', idStr)
             const id = new ObjectId(idStr);
@@ -286,12 +288,56 @@ async function run() {
 
                 res.status(201).json({ message: "message sent" });
             }
-            catch(err){
-                console.log('error posting new message',err);
-                res.status(500).json({message:"internal server error while posting new message"});
+            catch (err) {
+                console.log('error posting new message', err);
+                res.status(500).json({ message: "internal server error while posting new message" });
             }
-        })
+        });
 
+
+        // cart api
+        app.post('/add-to-cart', verifyFirebaseToken, async (req, res) => {
+            const cartItems = req.body;
+            if (!cartItems) {
+                return res.status(400).json({ message: 'cart not found!' });
+            }
+            try {
+                const result = await cartCollection.insertOne(cartItems);
+                if (!result.insertedId) {
+                    return res.status(404).json({ message: "cart not added. try again" });
+                }
+                res.status(201).json({ message: 'item added to your cart.', result });
+            }
+            catch (err) {
+                console.log('error adding items in the card', err);
+                res.status(500).json({ message: "internal server error adding items to the cart." });
+            }
+        });
+
+        app.get('/cart-items', async (req, res) => {
+            const { email } = req.query;
+
+            if (!email) {
+                return res.status(400).json({ message: 'user email not found!' });
+            }
+
+            try {
+                const sortQuery = { user: email };
+                const cartItems = await cartCollection.find(sortQuery).toArray();
+                if (!cartItems) {
+                    return res.status(404).json({ message: "no item found in the cart." });
+                }
+                else{
+                    
+                }
+                res.status(200).json(cartItems);
+            }
+            catch (err) {
+                console.log('error getting cart items.', err);
+                res.status(500).json({ message: "internal server error getting cart items" });
+            }
+
+        })
 
 
         // await client.db("admin").command({ ping: 1 });
