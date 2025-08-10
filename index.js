@@ -78,7 +78,7 @@ async function run() {
 
         const subscribers = client.db('galaxiDb').collection('subscriberCollection');
 
-        app.post('/products', async (req, res) => {
+        app.post('/products',verifyFirebaseToken, async (req, res) => {
             const newProduct = req.body;
             // console.log(newProduct)
             const result = await productsCollection.insertOne(newProduct)
@@ -211,7 +211,7 @@ async function run() {
         })
 
 
-        app.patch('/purchase/product/:id', async (req, res) => {
+        app.patch('/purchase/product/:id',verifyFirebaseToken, async (req, res) => {
             try {
                 const id = req.params.id;
                 const { quantity } = req.body;
@@ -244,7 +244,7 @@ async function run() {
         });
 
 
-        app.patch('/update/product/:id', async (req, res) => {
+        app.patch('/update/product/:id',verifyFirebaseToken, async (req, res) => {
             const { id } = req.params;
             const { updatedProduct } = req.body;
             const filter = { _id: new ObjectId(id) };
@@ -261,7 +261,7 @@ async function run() {
         })
 
 
-        app.delete('/products/delete/:id', async (req, res) => {
+        app.delete('/products/delete/:id',verifyFirebaseToken, async (req, res) => {
             const id = req.params.id;
             const result = await productsCollection.deleteOne({ _id: new ObjectId(id) });
             res.send(result);
@@ -271,7 +271,7 @@ async function run() {
         // ordered products functions
 
 
-        app.post('/ordered/products', async (req, res) => {
+        app.post('/ordered/products',verifyFirebaseToken, async (req, res) => {
             const { orderedProducts } = req.body;
             // console.log(orderedProducts);
             const result = await ordersCollection.insertOne(orderedProducts);
@@ -294,14 +294,14 @@ async function run() {
             res.send(result)
         })
 
-        app.delete('/ordered/product/:id', async (req, res) => {
+        app.delete('/ordered/product/:id',verifyFirebaseToken, async (req, res) => {
             const { id } = req.params;
             const query = { _id: new ObjectId(id) };
             const result = await ordersCollection.deleteOne(query);
             res.send(result);
         })
 
-        app.patch('/ordered/products/:id', async (req, res) => {
+        app.patch('/ordered/products/:id',verifyFirebaseToken, async (req, res) => {
             const { quantity } = req.body;
             try {
                 if (!quantity || typeof quantity !== 'number' || quantity <= 0) {
@@ -360,7 +360,7 @@ async function run() {
 
 
         // cart api
-        app.post('/add-to-cart', async (req, res) => {
+        app.post('/add-to-cart',verifyFirebaseToken, async (req, res) => {
             const cartItems = req.body;
             if (!cartItems) {
                 return res.status(400).json({ message: 'cart not found!' });
@@ -378,7 +378,7 @@ async function run() {
             }
         });
 
-        app.get('/cart-items', async (req, res) => {
+        app.get('/cart-items',verifyFirebaseToken, async (req, res) => {
             const { email } = req.query;
 
             if (!email) {
@@ -404,7 +404,7 @@ async function run() {
 
         });
 
-        app.post('/cart-item-details-by-id', async (req, res) => {
+        app.post('/cart-item-details-by-id',verifyFirebaseToken, async (req, res) => {
             const { ids } = req.body;
             console.log('ids from carte items by id->', ids);
 
@@ -430,7 +430,7 @@ async function run() {
 
         });
 
-        app.patch('/cart-items/:id', async (req, res) => {
+        app.patch('/cart-items/:id',verifyFirebaseToken, async (req, res) => {
             const { id } = req.params;
             const { quantity } = req.body;
             console.log("id and quantity from cart quantity patch",
@@ -460,7 +460,7 @@ async function run() {
             }
         });
 
-        app.delete('/cart-items/:id', async (req, res) => {
+        app.delete('/cart-items/:id',verifyFirebaseToken, async (req, res) => {
             const { id } = req.params;
             if (!id) {
                 return res.status(400).json({ message: "product id not found!" });
@@ -481,7 +481,7 @@ async function run() {
             }
         });
 
-        app.delete('/delete-all-cart-items', async (req, res) => {
+        app.delete('/delete-all-cart-items',verifyFirebaseToken, async (req, res) => {
             const { email } = req.query;
             console.log(email);
             if (!email) {
@@ -503,7 +503,7 @@ async function run() {
 
 
         // confirm order collection from cart 
-        app.post('/create-confirm-order', async (req, res) => {
+        app.post('/create-confirm-order',verifyFirebaseToken, async (req, res) => {
             const orderBody = req.body;
             // console.log(orderBody);
             if (!orderBody) {
@@ -525,7 +525,7 @@ async function run() {
 
         });
 
-        app.get('/my-ordered-items', async (req, res) => {
+        app.get('/my-ordered-items',verifyFirebaseToken, async (req, res) => {
             const { email } = req.query;
             if (!email) {
                 return res.status(400).json({ message: "user email not found!" });
@@ -551,7 +551,7 @@ async function run() {
 
         });
 
-        app.delete('/delete-my-orders', async (req, res) => {
+        app.delete('/delete-my-orders',verifyFirebaseToken, async (req, res) => {
             const { id } = req.query;
             if (!id) {
                 return res.status(400).json({ message: "order id not found" });
@@ -574,7 +574,7 @@ async function run() {
         });
 
         // track order
-        app.get('/track-order', async (req, res) => {
+        app.get('/track-order',verifyFirebaseToken, async (req, res) => {
             const { transactionId, email } = req.query;
             if (!transactionId || !email) {
                 return res.status(400).json({ message: "transaction id or email missing" });
