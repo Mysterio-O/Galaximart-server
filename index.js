@@ -31,6 +31,8 @@ admin.initializeApp({
 
 const verifyFirebaseToken = async (req, res, next) => {
     const accessToken = req?.headers?.authorization;
+    // console.log("entered verification")
+    // console.log(accessToken);
 
     if (!accessToken || !accessToken.startsWith('Bearer ')) {
         return res.status(401).send({ message: 'unauthorized access' });
@@ -72,6 +74,10 @@ async function run() {
 
         const cartCollection = client.db('galaxiDb').collection('cartCollection');
 
+        const confirmedOrderCollection = client.db('galaxiDb').collection('confirmedOrderCollection');
+
+        const subscribers = client.db('galaxiDb').collection('subscriberCollection');
+
         app.post('/products', async (req, res) => {
             const newProduct = req.body;
             // console.log(newProduct)
@@ -106,7 +112,11 @@ async function run() {
         })
 
         app.get('/allProducts', verifyFirebaseToken, async (req, res) => {
-            const { sortParam } = req.query;
+            const { sortParam, page = 1, limit = 10 } = req.query;
+
+            const pageNumber = parseInt(page);
+            const limitNumber = parseInt(limit);
+
             let sortObj = {};
             let filter = {};
             if (sortParam) {
@@ -119,8 +129,35 @@ async function run() {
                 }
             }
 
-            const result = await productsCollection.find(filter).sort(sortObj).toArray();
-            res.send(result);
+            try {
+                const total = await productsCollection.countDocuments(filter);
+
+                const skip = (pageNumber - 1) * limitNumber
+
+                const result = await productsCollection.find(filter)
+                    .sort(sortObj)
+                    .skip(skip)
+                    .limit(limitNumber)
+                    .toArray();
+
+                res.status(200).json({
+                    data: result,
+                    pagination: {
+                        total,
+                        page: pageNumber,
+                        limit: limitNumber,
+                        totalPages: Math.ceil(total / limitNumber),
+                        hasNextPage: pageNumber * limitNumber < total,
+                        hasPrevPage: pageNumber > 1
+                    }
+                });
+
+            }
+            catch (err) {
+                console.error("error getting all products", err);
+                res.status(500).json({ message: "internal server error getting all products" });
+            }
+
 
         })
 
@@ -137,13 +174,40 @@ async function run() {
         })
 
         app.get('/products/category/:id', async (req, res) => {
-            const filter = req.params.id;
-            // console.log('filter =', filter)
-            const query = { category: filter }
-            // console.log('qurey =', query);
-            const products = await productsCollection.find(query).toArray()
-            // console.log(products);
-            res.send(products)
+            try {
+                const filter = req.params.id;
+                const { page = 1, limit = 10 } = req.query;
+
+                const pageNumber = parseInt(page);
+                const limitNumber = parseInt(limit);
+
+                const query = { category: filter }
+                // console.log(query);
+
+                const total = await productsCollection.countDocuments(query);
+                const skip = (pageNumber - 1) * limitNumber;
+
+                const products = await productsCollection.find(query)
+                    .skip(skip)
+                    .limit(limitNumber)
+                    .toArray()
+                // console.log('products from category products',products);
+                res.status(200).json({
+                    data: products,
+                    pagination: {
+                        total,
+                        page: pageNumber,
+                        limit: limitNumber,
+                        totalPages: Math.ceil(total / limitNumber),
+                        hasNextPage: page * limitNumber < total,
+                        hasPrevPage: page > 1
+                    }
+                })
+            }
+            catch (err) {
+                console.error("error getting products", err);
+                res.status(500).json({ message: "internal server error getting category products" });
+            }
         })
 
 
@@ -218,11 +282,11 @@ async function run() {
             const query = req.query.email;
             // console.log(query);
 
-            if (query) {
-                if (query !== req?.decoded?.email) {
-                    return res.status(403).send({ message: 'Access Denied' })
-                }
-            }
+            // if (query) {
+            //     if (query !== req?.decoded?.email) {
+            //         return res.status(403).send({ message: 'Access Denied' })
+            //     }
+            // }
 
             const filter = { email: query };
             const result = await ordersCollection.find(filter).toArray();
@@ -296,7 +360,7 @@ async function run() {
 
 
         // cart api
-        app.post('/add-to-cart', verifyFirebaseToken, async (req, res) => {
+        app.post('/add-to-cart', async (req, res) => {
             const cartItems = req.body;
             if (!cartItems) {
                 return res.status(400).json({ message: 'cart not found!' });
@@ -324,19 +388,239 @@ async function run() {
             try {
                 const sortQuery = { user: email };
                 const cartItems = await cartCollection.find(sortQuery).toArray();
+                // console.log('cart items from get request ->', cartItems);
                 if (!cartItems) {
                     return res.status(404).json({ message: "no item found in the cart." });
                 }
-                else{
-                    
+                else {
+                    res.status(200).json(cartItems);
                 }
-                res.status(200).json(cartItems);
+
             }
             catch (err) {
                 console.log('error getting cart items.', err);
                 res.status(500).json({ message: "internal server error getting cart items" });
             }
 
+        });
+
+        app.post('/cart-item-details-by-id', async (req, res) => {
+            const { ids } = req.body;
+            console.log('ids from carte items by id->', ids);
+
+            if (!Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({ message: "ids not found or invalid" });
+            }
+
+            try {
+                const filter = {
+                    _id: {
+                        $in: ids.map(id => new ObjectId(id))
+                    }
+                }
+                console.log('filter form the cart item details api->', filter);
+                const products = await productsCollection.find(filter).toArray();
+                console.log('products from cart item details by id->', products);
+                res.status(200).json(products);
+            }
+            catch (err) {
+                console.error("error getting cart items with id", err);
+                res.status(500).json({ message: "internal server error fetching cart items with id" });
+            }
+
+        });
+
+        app.patch('/cart-items/:id', async (req, res) => {
+            const { id } = req.params;
+            const { quantity } = req.body;
+            console.log("id and quantity from cart quantity patch",
+                {
+                    id, quantity
+                }
+            )
+            if (!quantity) {
+                return res.status(400).json({ message: "quantity not found" });
+            }
+            if (!id) {
+                return res.status(400).json({ message: "product id not found" });
+            }
+            try {
+                const updatedDoc = {
+                    $set: { quantity }
+                }
+                const result = await cartCollection.updateOne({
+                    _id: new ObjectId(id)
+                }, updatedDoc);
+                console.log('result from cart quantity update', result);
+                res.status(201).json({ result });
+            }
+            catch (err) {
+                console.error("internal server error patching cart item quantity", err);
+                res.status(500).json({ message: "internal server error patching cart item quantity" })
+            }
+        });
+
+        app.delete('/cart-items/:id', async (req, res) => {
+            const { id } = req.params;
+            if (!id) {
+                return res.status(400).json({ message: "product id not found!" });
+            }
+            try {
+                const result = await cartCollection.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount < 1) {
+                    return res.status(400).json({ message: 'failed to delete cart item' });
+                } else {
+                    console.log('cart item deleted', result);
+                    res.status(201).json(result);
+                }
+            }
+            catch (err) {
+                console.error('internal server error deleting cart item', err);
+                res.status(500).json({ message: 'internal server error deleting cart item' });
+            }
+        });
+
+        app.delete('/delete-all-cart-items', async (req, res) => {
+            const { email } = req.query;
+            console.log(email);
+            if (!email) {
+                return res.status(400).json({ message: "user email not found!" });
+            }
+            try {
+                const result = await cartCollection.deleteMany({ user: email });
+                if (result?.deletedCount > 0) {
+                    res.status(201).json(result);
+                } else {
+                    return res.status(400).json({ message: "failed to delete cart items" });
+                }
+            }
+            catch (err) {
+                console.error("error cleaning cart items", err);
+                res.status(500).json({ message: "internal server error deleting cart items" });
+            }
+        })
+
+
+        // confirm order collection from cart 
+        app.post('/create-confirm-order', async (req, res) => {
+            const orderBody = req.body;
+            // console.log(orderBody);
+            if (!orderBody) {
+                return res.status(400).json({ message: 'order details not found!' });
+            }
+
+            try {
+                const result = await confirmedOrderCollection.insertOne(orderBody);
+                if (result?.insertedId) {
+                    res.status(201).json(result);
+                } else {
+                    return res.status(400).json({ message: "placing order was unsuccessful!" });
+                }
+            }
+            catch (err) {
+                console.error("internal server error adding confirm order in the database", err);
+                res.status(500).json({ message: "internal server error adding confirm order in the database" });
+            }
+
+        });
+
+        app.get('/my-ordered-items', async (req, res) => {
+            const { email } = req.query;
+            if (!email) {
+                return res.status(400).json({ message: "user email not found!" });
+            }
+
+            try {
+                const result = await confirmedOrderCollection.find({
+                    'purchaseDetails.userEmail': email
+                }).sort({
+                    'purchaseDetails.orderedDate': -1
+                }).toArray();
+
+                if (!result) {
+                    return res.status(404).json({ message: "no order history found with this email" });
+                }
+                res.status(200).json(result);
+
+            }
+            catch (err) {
+                console.error("error getting users confirmed orders", err);
+                res.status(500).json({ message: "internal server error getting confirmed orders!" });
+            }
+
+        });
+
+        app.delete('/delete-my-orders', async (req, res) => {
+            const { id } = req.query;
+            if (!id) {
+                return res.status(400).json({ message: "order id not found" });
+            }
+            try {
+                const result = await confirmedOrderCollection.deleteOne({
+                    _id: new ObjectId(id)
+                });
+                if (result?.deletedCount < 1) {
+                    return res.status(400).json({ message: "order delete failed" });
+                }
+                else {
+                    res.status(201).json(result);
+                }
+            }
+            catch (err) {
+                console.error("error deleting ordered item", err);
+                res.status(500).json({ message: "internal server error deleting confirmed order" });
+            }
+        });
+
+        // track order
+        app.get('/track-order', async (req, res) => {
+            const { transactionId, email } = req.query;
+            if (!transactionId || !email) {
+                return res.status(400).json({ message: "transaction id or email missing" });
+            }
+            try {
+                const filter = { 'purchaseDetails.transactionId': transactionId }
+                const result = await confirmedOrderCollection.findOne(filter);
+                if (!result) {
+                    return res.status(404).json({ message: "order not found" });
+                }
+                res.status(200).json(result);
+            }
+            catch (err) {
+                console.error("error tracking order", err);
+                res.status(500).json({ message: "internal server error tracking order" });
+            }
+        });
+
+        // subscriber
+        app.post('/subscribe', async (req, res) => {
+            const { email } = req.body;
+            // console.log(email);;
+            if (!email) {
+                return res.status(400).json({ message: "email not found" });
+            }
+            try {
+
+                const existingSubscriber = await subscribers.findOne({ subscriber: email });
+
+                if (existingSubscriber) {
+                    return res.status(409).json({
+                        message: "This email is already subscribed",
+                        alreadySubscribed: true
+                    });
+                }
+
+                const result = await subscribers.insertOne({ subscriber: email });
+                if (!result.insertedId) {
+                    return res.status(400).json({ message: "subscribing failed" });
+                }
+                res.status(201).json(result);
+            }
+            catch (err) {
+                console.error("error adding subscriber");
+                res.status(500).json({ message: "internal server error while subscribing" });
+            }
         })
 
 
